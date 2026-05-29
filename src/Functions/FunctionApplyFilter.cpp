@@ -36,6 +36,15 @@ public:
     bool isVariadic() const override { return false; }
     bool isInjective(const ColumnsWithTypeAndName &) const override { return false; }
 
+    /// A runtime filter's result is not a pure function of its arguments — it depends on the
+    /// dynamically built filter, which differs between executions of the same plan (e.g. recursive
+    /// CTE iterations or materialized-view blocks). `isDeterministic() == false` keeps it out of
+    /// the query condition cache (which keys on the now-deterministic filter expression and would
+    /// otherwise serve a stale per-granule result to a later execution with different keys). We
+    /// keep `isDeterministicInScopeOfQuery() == true` so the filter can still be pushed into
+    /// PREWHERE: within a single read the built filter is fixed, so the predicate is stable there.
+    bool isDeterministic() const override { return false; }
+
     bool isSuitableForConstantFolding() const override { return false; }
     bool isSuitableForShortCircuitArgumentsExecution(const DataTypesWithConstInfo & /*arguments*/) const override { return false; }
     size_t getNumberOfArguments() const override { return 2; }
