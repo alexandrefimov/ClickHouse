@@ -9,6 +9,7 @@
 #include <boost/noncopyable.hpp>
 #include <cstddef>
 #include <memory>
+#include <mutex>
 
 namespace DB
 {
@@ -269,22 +270,44 @@ private:
     BloomFilterPtr bloom_filter;
 };
 
-/// Store and find per-query runtime filters that are used for optimizing some kinds of JOINs
-/// by early pre-filtering of the left side of the JOIN.
-struct IRuntimeFilterLookup : boost::noncopyable
+/// A plan-carried handle for a single join runtime filter, modelled on `FutureSet`: the handle is
+/// created during planning and embedded in the plan (in a `ColumnRuntimeFilter` argument of
+/// `__applyFilter` on the probe side, and referenced by the `BuildRuntimeFilterStep` on the build
+/// side). The actual filter is produced at execution time — the build-side transforms fill the
+/// handle, the probe-side function reads it. Because the rendezvous is the handle *pointer* carried
+/// in the plan (not a name in a query-lifetime registry), each plan build — including every
+/// recursive-CTE iteration or materialized-view block — gets its own fresh filter automatically,
+/// the same way each build gets its own `FutureSet`.
+///
+/// `structural_hash` is a deterministic fingerprint of the join the filter belongs to. It is used
+/// only as the handle's identity for plan-cache-key hashing (see `ColumnRuntimeFilter`): the two
+/// plan builds in `considerEnablingParallelReplicas` compute the same fingerprint, so their plans
+/// hash equally without any special-casing of runtime filters.
+class FutureRuntimeFilter
 {
-    virtual ~IRuntimeFilterLookup() = default;
+public:
+    explicit FutureRuntimeFilter(UInt64 structural_hash_)
+        : structural_hash(structural_hash_)
+    {
+    }
 
-    /// Add runtime filter with the specified name
-    virtual void add(const String & name, UniqueRuntimeFilterPtr runtime_filter) = 0;
+    /// Called once per parallel build stream; merges partial filters and seals when all arrived.
+    /// Thread-safe. Mirrors the create-or-merge-then-finish logic that the named lookup used to do.
+    void add(UniqueRuntimeFilterPtr partial);
 
-    /// Get filter by name
-    virtual RuntimeFilterConstPtr find(const String & name) const = 0;
+    /// Returns the (possibly not-yet-sealed) filter, or nullptr if no build stream has run yet.
+    RuntimeFilterConstPtr get() const;
 
-    /// Log various RuntimeFilter usage statistics such as number of filtered rows
-    virtual void logStats() const {}
+    UInt64 getStructuralHash() const { return structural_hash; }
+
+    void logStats() const;
+
+private:
+    mutable std::mutex mutex;
+    SharedRuntimeFilterPtr filter;
+    const UInt64 structural_hash;
 };
 
-using RuntimeFilterLookupPtr = std::shared_ptr<IRuntimeFilterLookup>;
+using FutureRuntimeFilterPtr = std::shared_ptr<FutureRuntimeFilter>;
 
 }

@@ -237,6 +237,7 @@ bool canBeSafelyCast(const DataTypePtr & from_type, const DataTypePtr & to_type)
         }
         case TypeIndex::String:
         case TypeIndex::Set:
+        case TypeIndex::RuntimeFilter:
         case TypeIndex::Interval:
         case TypeIndex::Function:
         case TypeIndex::AggregateFunction:

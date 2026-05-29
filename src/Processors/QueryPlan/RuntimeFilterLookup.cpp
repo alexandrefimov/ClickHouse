@@ -332,55 +332,36 @@ void ApproximateRuntimeFilter::checkBloomFilterWorthiness()
         setFullyDisabled();
 }
 
-class RuntimeFilterLookup : public IRuntimeFilterLookup
+void FutureRuntimeFilter::add(UniqueRuntimeFilterPtr partial)
 {
-public:
-    void add(const String & name, UniqueRuntimeFilterPtr runtime_filter) override
+    std::lock_guard lock(mutex);
+    if (!filter)
     {
-        std::lock_guard g(rw_lock);
-        auto & filter = filters_by_name[name];
-        if (!filter)
-        {
-            ProfileEvents::increment(ProfileEvents::RuntimeFiltersCreated);
-            filter.reset(runtime_filter.release());   /// Save new filter
-        }
-        else
-        {
-            filter->merge(runtime_filter.get());    /// Add all new keys to a existing filter
-        }
-        filter->finishInsert();
+        ProfileEvents::increment(ProfileEvents::RuntimeFiltersCreated);
+        filter.reset(partial.release());   /// First partial becomes the filter
     }
-
-    RuntimeFilterConstPtr find(const String & name) const override
+    else
     {
-        SharedLockGuard g(rw_lock);
-        auto it = filters_by_name.find(name);
-        if (it == filters_by_name.end())
-            return nullptr;
-        else
-            return it->second;
+        filter->merge(partial.get());      /// Union the keys of this stream's partial
     }
+    filter->finishInsert();                /// Seals once all expected partials have arrived
+}
 
-    void logStats() const override
-    {
-        SharedLockGuard g(rw_lock);
-        for (const auto & [filter_name, filter] : filters_by_name)
-        {
-            const auto & stats = filter->getStats();
-            LOG_TRACE(getLogger("RuntimeFilter"),
-                "Stats for '{}': rows skipped {}, rows checked {}, rows passed {}, blocks skipped {}, blocks processed {}",
-                filter_name, stats.rows_skipped.load(), stats.rows_checked.load(), stats.rows_passed.load(), stats.blocks_skipped.load(), stats.blocks_processed.load());
-        }
-    }
-
-private:
-    mutable SharedMutex rw_lock;
-    std::unordered_map<String, SharedRuntimeFilterPtr> filters_by_name TSA_GUARDED_BY(rw_lock);
-};
-
-RuntimeFilterLookupPtr createRuntimeFilterLookup()
+RuntimeFilterConstPtr FutureRuntimeFilter::get() const
 {
-    return std::make_shared<RuntimeFilterLookup>();
+    std::lock_guard lock(mutex);
+    return filter;
+}
+
+void FutureRuntimeFilter::logStats() const
+{
+    std::lock_guard lock(mutex);
+    if (!filter)
+        return;
+    const auto & stats = filter->getStats();
+    LOG_TRACE(getLogger("RuntimeFilter"),
+        "Stats for runtime filter {:016x}: rows skipped {}, rows checked {}, rows passed {}, blocks skipped {}, blocks processed {}",
+        structural_hash, stats.rows_skipped.load(), stats.rows_checked.load(), stats.rows_passed.load(), stats.blocks_skipped.load(), stats.blocks_processed.load());
 }
 
 }

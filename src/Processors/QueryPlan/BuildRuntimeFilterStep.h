@@ -1,5 +1,6 @@
 #pragma once
 #include <Processors/QueryPlan/ITransformingStep.h>
+#include <Processors/QueryPlan/RuntimeFilterLookup.h>
 
 namespace DB
 {
@@ -15,6 +16,7 @@ public:
         String filter_column_name_,
         const DataTypePtr & filter_column_type_,
         String filter_name_,
+        FutureRuntimeFilterPtr handle_,
         UInt64 exact_values_limit_,
         UInt64 bloom_filter_bytes_,
         UInt64 bloom_filter_hash_functions_,
@@ -49,6 +51,9 @@ private:
     String filter_column_name;
     DataTypePtr filter_column_type;
     String filter_name;
+    /// Plan-carried rendezvous handle (not serialized); the matching `__applyFilter` reads the same
+    /// handle via its `ColumnRuntimeFilter` argument. May be null on a deserialized step.
+    FutureRuntimeFilterPtr handle;
 
     UInt64 exact_values_limit;
     UInt64 bloom_filter_bytes;

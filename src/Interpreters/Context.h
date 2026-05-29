@@ -296,13 +296,6 @@ using StorageSnapshotPtr = std::shared_ptr<StorageSnapshot>;
 class SystemAllocatedMemoryHolder;
 using SystemAllocatedMemoryHolderPtr = std::shared_ptr<SystemAllocatedMemoryHolder>;
 
-/// IRuntimeFilterLookup allows to store and find per-query runtime filters under unique names.
-/// Runtime filters are used to optimize JOINs in some cases by building a bloom filter from the right side
-/// of the JOIN and use it to do early pre-filtering on the left side of the JOIN.
-struct IRuntimeFilterLookup;
-using RuntimeFilterLookupPtr = std::shared_ptr<IRuntimeFilterLookup>;
-RuntimeFilterLookupPtr createRuntimeFilterLookup();
-
 class QueryMetadataCache;
 using QueryMetadataCachePtr = std::shared_ptr<QueryMetadataCache>;
 using QueryMetadataCacheWeakPtr = std::weak_ptr<QueryMetadataCache>;
@@ -629,9 +622,6 @@ protected:
     /// and generate specific filters on the replicas (e.g. when using parallel replicas with sample key)
     /// if we already use a different mode of parallel replicas we want to disable this mode
     bool offset_parallel_replicas_enabled = true;
-
-    /// Used at query runtime to save per-query runtime filters and find them by names
-    RuntimeFilterLookupPtr runtime_filter_lookup;
 
 public:
     /// Some counters for current query execution.
@@ -1813,11 +1803,6 @@ public:
     PreparedSetsCachePtr getPreparedSetsCache() const;
 
     ReverseLookupCache & getReverseLookupCache() const;
-
-    /// IRuntimeFilterLookup allows to store and find per-query runtime filters under unique names. Those are used
-    /// to optimize some JOINs by early pre-filtering left side of the JOIN by a filter built form the right side.
-    void setRuntimeFilterLookup(const RuntimeFilterLookupPtr & filter_lookup);
-    RuntimeFilterLookupPtr getRuntimeFilterLookup() const;
 
     void setPartitionIdToMaxBlock(const UUID & table_uuid, PartitionIdToMaxBlockPtr partitions);
     PartitionIdToMaxBlockPtr getPartitionIdToMaxBlock(const UUID & table_uuid) const;

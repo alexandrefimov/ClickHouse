@@ -200,6 +200,9 @@ BinaryTypeIndex getBinaryTypeIndex(const DataTypePtr & type)
         /// JSONPaths is used only during schema inference and cannot be used anywhere else.
         case TypeIndex::JSONPaths:
             throw Exception(ErrorCodes::UNSUPPORTED_METHOD, "Binary encoding of type JSONPaths is not supported");
+        /// RuntimeFilter is an intermediate dummy used only inside the __applyFilter expression.
+        case TypeIndex::RuntimeFilter:
+            throw Exception(ErrorCodes::UNSUPPORTED_METHOD, "Binary encoding of type RuntimeFilter is not supported");
         case TypeIndex::Object:
         {
             const auto & object_type = assert_cast<const DataTypeObject &>(*type);

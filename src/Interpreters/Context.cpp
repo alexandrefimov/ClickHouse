@@ -1271,7 +1271,6 @@ ContextData::ContextData(const ContextData &o) :
     classifier(o.classifier),
     prepared_sets_cache(o.prepared_sets_cache),
     offset_parallel_replicas_enabled(o.offset_parallel_replicas_enabled),
-    runtime_filter_lookup(o.runtime_filter_lookup),
     kitchen_sink(o.kitchen_sink),
     part_uuids(o.part_uuids),
     ignored_part_uuids(o.ignored_part_uuids),
@@ -3494,7 +3493,6 @@ void Context::makeQueryContext()
     backups_query_throttler.reset();
     query_privileges_info = std::make_shared<QueryPrivilegesInfo>(*query_privileges_info);
     async_read_counters = std::make_shared<AsyncReadCounters>();
-    runtime_filter_lookup = createRuntimeFilterLookup();
 }
 
 void Context::makeQueryContextForMerge(const MergeTreeSettings & merge_tree_settings)
@@ -7887,16 +7885,6 @@ ReverseLookupCache & Context::getReverseLookupCache() const
             ReverseLookupCache::DEFAULT_SIZE_RATIO);
     }
     return *query_context->reverse_lookup_cache;
-}
-
-void Context::setRuntimeFilterLookup(const RuntimeFilterLookupPtr & filter_lookup)
-{
-    runtime_filter_lookup = filter_lookup;
-}
-
-RuntimeFilterLookupPtr Context::getRuntimeFilterLookup() const
-{
-    return runtime_filter_lookup;
 }
 
 UInt64 Context::getClientProtocolVersion() const

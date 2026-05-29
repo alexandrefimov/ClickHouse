@@ -1,16 +1,12 @@
 #include <memory>
-#include <Columns/ColumnString.h>
+#include <Columns/ColumnRuntimeFilter.h>
 #include <Columns/ColumnsNumber.h>
-#include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Functions/FunctionHelpers.h>
 #include <Functions/FunctionFactory.h>
 #include <Functions/IFunction.h>
-#include <Interpreters/Context.h>
 #include <Interpreters/BloomFilter.h>
 #include <Processors/QueryPlan/RuntimeFilterLookup.h>
-#include <IO/WriteHelpers.h>
-#include <Common/CurrentThread.h>
 #include <Common/FunctionDocumentation.h>
 
 namespace DB
@@ -24,8 +20,10 @@ namespace ErrorCodes
 }
 
 /// Special function for JOIN runtime filtering
-/// Syntax: __applyFilter(filter_name, key)
-/// - filter_name: Internal name of runtime filter. It is built by BuildRuntimeFilterStep. String
+/// Syntax: __applyFilter(handle, key)
+/// - handle: a `ColumnRuntimeFilter` carrying the plan-built `FutureRuntimeFilter` (built by
+///   `BuildRuntimeFilterStep`); the rendezvous is the handle pointer, mirroring how `IN` reaches
+///   its `FutureSet` via a `ColumnSet` argument.
 /// - key: Value of any type that is checked to be present in the filter.
 /// Returns false if the key should be filtered
 class FunctionApplyFilter final : public IFunction
@@ -50,10 +48,10 @@ public:
                             "Number of arguments for function {} can't be {}, should be 2",
                             getName(), arguments.size());
 
-        if (!WhichDataType(arguments[0]).isString())
+        if (arguments[0]->getTypeId() != TypeIndex::RuntimeFilter)
             throw Exception(
                     ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                    "First argument of function '{}' must be a String filter name",
+                    "First argument of function '{}' must be a runtime filter handle",
                     getName());
 
         return std::make_shared<DataTypeUInt8>();
@@ -69,32 +67,19 @@ public:
 
     ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t input_rows_count) const override
     {
-        String filter_name;
-        if (const auto * filter_name_const_column = checkAndGetColumnConst<ColumnString>(arguments[0].column.get()))
-        {
-            filter_name = filter_name_const_column->getValue<String>();
-        }
-        else if (const auto * filter_name_column = dynamic_cast<const ColumnString *>(arguments[0].column.get()))
-        {
-            if (filter_name_column->size() == 1)
-                filter_name = filter_name_column->getDataAt(0);
-        }
-
-        if (filter_name.empty())
+        const auto * column_runtime_filter = checkAndGetColumnConstData<const ColumnRuntimeFilter>(arguments[0].column.get());
+        if (!column_runtime_filter)
+            column_runtime_filter = checkAndGetColumn<const ColumnRuntimeFilter>(arguments[0].column.get());
+        if (!column_runtime_filter)
             throw Exception(
                     ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT,
-                    "First argument of function '{}' must be a String filter name",
+                    "First argument of function '{}' must be a runtime filter handle",
                     getName());
 
-        auto query_context = CurrentThread::tryGetQueryContext();
-        if (!query_context)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Query context is not available for {}", getName());
-        auto filter_lookup = query_context->getRuntimeFilterLookup();
-        if (!filter_lookup)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Runtime filter lookup was not initialized");
-        auto filter = filter_lookup->find(filter_name);
+        const auto handle = column_runtime_filter->getData();
 
-        /// If filter is not present all rows pass
+        /// If the filter has not been built yet (no build stream ran), all rows pass.
+        auto filter = handle ? handle->get() : nullptr;
         if (!filter)
             return DataTypeUInt8().createColumnConst(input_rows_count, true);
 

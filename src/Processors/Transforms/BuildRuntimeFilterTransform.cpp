@@ -19,6 +19,7 @@ BuildRuntimeFilterTransform::BuildRuntimeFilterTransform(
     String filter_column_name_,
     const DataTypePtr & filter_column_type_,
     String filter_name_,
+    FutureRuntimeFilterPtr handle_,
     size_t filters_to_merge_,
     UInt64 exact_values_limit_,
     UInt64 bloom_filter_bytes_,
@@ -34,6 +35,7 @@ BuildRuntimeFilterTransform::BuildRuntimeFilterTransform(
     , filter_column_original_type(header_->getByPosition(filter_column_position).type)
     , filter_column_target_type(filter_column_type_)
     , filter_name(filter_name_)
+    , handle(std::move(handle_))
     , query_context(std::move(query_context_))
 {
     const auto & filter_column = header_->getByPosition(filter_column_position);
@@ -105,10 +107,11 @@ void BuildRuntimeFilterTransform::transform(Chunk & chunk)
 
 void BuildRuntimeFilterTransform::finish()
 {
-    if (!query_context)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Query context is not available for BuildRuntimeFilterTransform");
-    auto filter_lookup = query_context->getRuntimeFilterLookup();
-    filter_lookup->add(filter_name, std::move(built_filter));
+    /// Rendezvous via the plan-carried handle (mirrors how `IN` reaches its `FutureSet`). A null
+    /// handle only happens on a deserialized step, which is never executed in practice.
+    if (!handle)
+        return;
+    handle->add(std::move(built_filter));
 }
 
 }
