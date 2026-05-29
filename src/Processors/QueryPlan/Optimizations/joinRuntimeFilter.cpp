@@ -83,10 +83,6 @@ const ActionsDAG::Node & addTupleOfKeys(
 /// Add a `ColumnRuntimeFilter` const column carrying the plan-built handle to the DAG. Its node
 /// name is derived from the handle's deterministic structural hash, so the two Auto-PR plan builds
 /// produce identical DAG hashes (mirrors how a `ColumnSet` carries a `FutureSet`).
-/// Canonical name of a runtime filter, derived from the handle's deterministic structural hash.
-/// Used both for the carrier column (so `getRuntimeFilterId` in EXPLAIN returns it) and for the
-/// `BuildRuntimeFilterStep` (the EXPLAIN "Runtime filters: RF<n>(...)" describe keys its map by
-/// `BuildRuntimeFilterStep::getFilterName()`), so the two must match.
 String runtimeFilterName(const FutureRuntimeFilterPtr & handle)
 {
     return "_runtime_filter_" + std::to_string(handle->getStructuralHash());

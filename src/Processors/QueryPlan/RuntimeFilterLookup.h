@@ -297,7 +297,7 @@ public:
     ~FutureRuntimeFilter();
 
     /// Called once per parallel build stream; merges partial filters and seals when all arrived.
-    /// Thread-safe. Mirrors the create-or-merge-then-finish logic that the named lookup used to do.
+    /// Thread-safe.
     void add(UniqueRuntimeFilterPtr partial);
 
     /// Returns the (possibly not-yet-sealed) filter, or nullptr if no build stream has run yet.
