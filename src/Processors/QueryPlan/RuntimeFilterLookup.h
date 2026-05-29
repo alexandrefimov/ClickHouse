@@ -291,6 +291,11 @@ public:
     {
     }
 
+    /// Logs usage statistics on teardown. Each handle dies when its plan is destroyed (after the
+    /// query finishes), so this gives per-filter stats without a central registry — the role the
+    /// removed `IRuntimeFilterLookup::logStats` used to serve at query end.
+    ~FutureRuntimeFilter();
+
     /// Called once per parallel build stream; merges partial filters and seals when all arrived.
     /// Thread-safe. Mirrors the create-or-merge-then-finish logic that the named lookup used to do.
     void add(UniqueRuntimeFilterPtr partial);

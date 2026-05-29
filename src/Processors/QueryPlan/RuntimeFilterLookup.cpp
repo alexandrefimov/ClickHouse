@@ -332,6 +332,18 @@ void ApproximateRuntimeFilter::checkBloomFilterWorthiness()
         setFullyDisabled();
 }
 
+FutureRuntimeFilter::~FutureRuntimeFilter()
+{
+    /// Never let logging throw out of a destructor.
+    try
+    {
+        logStats();
+    }
+    catch (...) // NOLINT(bugprone-empty-catch)
+    {
+    }
+}
+
 void FutureRuntimeFilter::add(UniqueRuntimeFilterPtr partial)
 {
     std::lock_guard lock(mutex);
