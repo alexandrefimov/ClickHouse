@@ -83,14 +83,22 @@ const ActionsDAG::Node & addTupleOfKeys(
 /// Add a `ColumnRuntimeFilter` const column carrying the plan-built handle to the DAG. Its node
 /// name is derived from the handle's deterministic structural hash, so the two Auto-PR plan builds
 /// produce identical DAG hashes (mirrors how a `ColumnSet` carries a `FutureSet`).
+/// Canonical name of a runtime filter, derived from the handle's deterministic structural hash.
+/// Used both for the carrier column (so `getRuntimeFilterId` in EXPLAIN returns it) and for the
+/// `BuildRuntimeFilterStep` (the EXPLAIN "Runtime filters: RF<n>(...)" describe keys its map by
+/// `BuildRuntimeFilterStep::getFilterName()`), so the two must match.
+String runtimeFilterName(const FutureRuntimeFilterPtr & handle)
+{
+    return "_runtime_filter_" + std::to_string(handle->getStructuralHash());
+}
+
 const ActionsDAG::Node & addRuntimeFilterHandleColumn(ActionsDAG & actions_dag, const FutureRuntimeFilterPtr & handle)
 {
-    const String handle_column_name = "_runtime_filter_" + std::to_string(handle->getStructuralHash());
     return actions_dag.addColumn(
         ColumnWithTypeAndName(
             ColumnConst::create(ColumnRuntimeFilter::create(1, handle), 0),
             std::make_shared<DataTypeRuntimeFilter>(),
-            handle_column_name));
+            runtimeFilterName(handle)));
 }
 
 const ActionsDAG::Node & createRuntimeFilterCondition(
@@ -262,7 +270,6 @@ bool tryAddJoinRuntimeFilter(QueryPlan::Node & node, QueryPlan::Nodes & nodes, c
         h.update(i);
         return std::make_shared<FutureRuntimeFilter>(h.get64());
     };
-    const String filter_name_prefix = fmt::format("{}_runtime_filter_{}", check_left_does_not_contain ? "_exclusion_" : "", base_fingerprint);
 
     /// Compute common types for each key pair
     DataTypes common_types;
@@ -304,8 +311,8 @@ bool tryAddJoinRuntimeFilter(QueryPlan::Node & node, QueryPlan::Nodes & nodes, c
 
     if (use_tuple_filter)
     {
-        const String filter_name = filter_name_prefix + "_0";
         auto handle = make_handle(0);
+        const String filter_name = runtimeFilterName(handle);
         auto tuple_type = std::make_shared<DataTypeTuple>(common_types);
         FunctionOverloadResolverPtr tuple_func = std::make_shared<FunctionToOverloadResolverAdaptor>(std::make_shared<FunctionTuple>());
 
@@ -370,8 +377,8 @@ bool tryAddJoinRuntimeFilter(QueryPlan::Node & node, QueryPlan::Nodes & nodes, c
         ActionsDAG::NodeRawConstPtrs all_filter_conditions;
         for (size_t i = 0; i < join_keys_build_side.size(); ++i)
         {
-            const String filter_name = filter_name_prefix + "_" + toString(i);
             auto handle = make_handle(i);
+            const String filter_name = runtimeFilterName(handle);
 
             const auto & join_key_build_side = join_keys_build_side[i];
             const auto & join_key_probe_side = join_keys_probe_side[i];
