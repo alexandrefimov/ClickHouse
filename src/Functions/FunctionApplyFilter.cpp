@@ -16,7 +16,6 @@ namespace ErrorCodes
 {
     extern const int ILLEGAL_TYPE_OF_ARGUMENT;
     extern const int TOO_FEW_ARGUMENTS_FOR_FUNCTION;
-    extern const int LOGICAL_ERROR;
 }
 
 /// Special function for JOIN runtime filtering
