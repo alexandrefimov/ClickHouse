@@ -29,7 +29,7 @@ set_source_files_properties(array.cpp PROPERTIES COMPILE_FLAGS "-U_LIBCPP_HARDEN
 # generating `vfmadd*` from `a*b + c` patterns in their hot inner loops. The per-file `COMPILE_FLAGS` are
 # appended after `CMAKE_CXX_FLAGS`, so this override wins over the global `-ffp-contract=off`.
 set_source_files_properties(
-    arrayDotProduct.cpp arrayDistance.cpp
+    arrayDotProduct.cpp arrayDistance.cpp arrayNorm.cpp
     PROPERTIES COMPILE_FLAGS "-ffp-contract=fast")
 
 if (OMIT_HEAVY_DEBUG_SYMBOLS)
