@@ -315,6 +315,4 @@ private:
 
 using FutureRuntimeFilterPtr = std::shared_ptr<FutureRuntimeFilter>;
 
-RuntimeFilterLookupPtr createRuntimeFilterLookup();
-
 }
