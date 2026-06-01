@@ -352,7 +352,7 @@ void writeMetadataFiles(
 
     for (const auto & history_record : plan.history)
     {
-        if (history_record.added_files == 0)
+        if (history_record.snapshot_summary.added_files == 0)
         {
             new_snapshots.push_back(MetadataGenerator::NextMetadataResult{});
             continue;
@@ -365,10 +365,10 @@ void writeMetadataFiles(
             plan.generator,
             generated_metadata_info.path,
             history_record.parent_id,
-            history_record.added_files,
+            history_record.snapshot_summary.added_files,
             total_records_count,
-            history_record.added_files_size,
-            history_record.num_partitions,
+            history_record.snapshot_summary.added_files_size,
+            history_record.snapshot_summary.num_partitions,
             0,
             0,
             history_record.snapshot_id,
@@ -487,7 +487,7 @@ void writeMetadataFiles(
     std::unordered_map<Iceberg::IcebergPathFromMetadata, Iceberg::IcebergPathFromMetadata> manifest_list_renamings;
     for (size_t i = 0; i < plan.history.size(); ++i)
     {
-        if (plan.history[i].added_files == 0)
+        if (plan.history[i].snapshot_summary.added_files == 0)
             continue;
 
         manifest_list_renamings[plan.history[i].manifest_list_path] = new_snapshots[i].manifest_list_path;
@@ -495,7 +495,7 @@ void writeMetadataFiles(
 
     for (size_t i = 0; i < plan.history.size(); ++i)
     {
-        if (plan.history[i].added_files == 0)
+        if (plan.history[i].snapshot_summary.added_files == 0)
             continue;
 
         auto initial_manifest_list_name = plan.history[i].manifest_list_path;
